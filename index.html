@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>30週年：勇者迷宮探險</title>
+    <style>
+        :root {
+            --baha-blue: #00adef;
+            --baha-gold: #f9d423;
+            --bg-dark: #0d1117;
+            --cell-closed: #30363d;
+            --cell-open: #161b22;
+            --trap-red: #f85149;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #adbac7;
+            font-family: "Microsoft JhengHei", sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 20px; margin: 0;
+        }
+
+        .game-header { text-align: center; margin-bottom: 20px; }
+        .game-header h1 { color: var(--baha-blue); margin: 0; }
+
+        /* 遊戲狀態列 */
+        .status-bar {
+            width: 320px; background: #21262d; padding: 15px;
+            border-radius: 10px; display: flex; justify-content: space-between;
+            margin-bottom: 20px; border: 1px solid #444;
+        }
+        .stat-item b { color: var(--baha-gold); font-size: 1.2em; }
+
+        /* 迷宮格柵 (6x6) */
+        .maze-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 50px);
+            grid-template-rows: repeat(6, 50px);
+            gap: 4px;
+            background: #444; padding: 6px; border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            width: 50px; height: 50px; background: var(--cell-closed);
+            border-radius: 4px; display: flex; align-items: center;
+            justify-content: center; font-weight: bold; font-size: 18px;
+            cursor: pointer; transition: 0.2s; user-select: none;
+        }
+        .cell:hover { filter: brightness(1.3); border: 1px solid var(--baha-blue); }
+
+        /* 點開後的樣式 */
+        .cell.open { background: var(--cell-open); cursor: default; }
+        .cell.mine { background: var(--trap-red) !important; }
+        .cell.treasure { background: var(--baha-gold) !important; color: #000; }
+        
+        /* 數字顏色 */
+        .n1 { color: #58a6ff; }
+        .n2 { color: #3fb950; }
+        .n3 { color: #f0883e; }
+
+        .controls { margin-top: 25px; }
+        .btn-reset {
+            padding: 10px 25px; background: var(--baha-blue); color: white;
+            border: none; border-radius: 5px; cursor: pointer; font-weight: bold;
+        }
+        .btn-reset:hover { opacity: 0.9; }
+
+        .log { margin-top: 20px; font-size: 14px; color: #8b949e; max-width: 320px; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="game-header">
+        <h1>勇者迷宮探險</h1>
+        <p>運用數字線索找出 <b>3 個寶藏</b>，避開怪物！</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="stat-item">體力: <b id="energy">10</b></div>
+        <div class="stat-item">寶藏: <b id="score">0/3</b></div>
+    </div>
+
+    <div class="maze-grid" id="maze"></div>
+
+    <div class="controls">
+        <button class="btn-reset" onclick="initGame()">重新生成迷宮</button>
+    </div>
+
+    <div class="log" id="game-log">點擊石磚開始探索...</div>
+
+    <script>
+        const SIZE = 6;
+        const MINE_COUNT = 5; // 怪物數量
+        const TREASURE_COUNT = 3; // 寶藏數量
+        let energy = 10;
+        let score = 0;
+        let board = [];
+        let revealedCount = 0;
+
+        function initGame() {
+            energy = 10;
+            score = 0;
+            revealedCount = 0;
+            document.getElementById('energy').innerText = energy;
+            document.getElementById('score').innerText = "0/3";
+            document.getElementById('game-log').innerText = "迷宮已重置，請謹慎探索。";
+            
+            const mazeContainer = document.getElementById('maze');
+            mazeContainer.innerHTML = '';
+            board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+
+            // 1. 放置怪物 (代號 -1)
+            let mPlaced = 0;
+            while (mPlaced < MINE_COUNT) {
+                let r = Math.floor(Math.random() * SIZE);
+                let c = Math.floor(Math.random() * SIZE);
+                if (board[r][c] === 0) {
+                    board[r][c] = 'M';
+                    mPlaced++;
+                }
+            }
+
+            // 2. 放置寶藏 (代號 'T')
+            let tPlaced = 0;
+            while (tPlaced < TREASURE_COUNT) {
+                let r = Math.floor(Math.random() * SIZE);
+                let c = Math.floor(Math.random() * SIZE);
+                if (board[r][c] === 0) {
+                    board[r][c] = 'T';
+                    tPlaced++;
+                }
+            }
+
+            // 3. 計算周圍怪物數量 (傳統踩地雷邏輯)
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] !== 'M' && board[r][c] !== 'T') {
+                        board[r][c] = countNearbyMines(r, c);
+                    }
+                }
+            }
+
+            // 4. 渲染畫面
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    cell.onclick = function() { handleCellClick(r, c, cell); };
+                    mazeContainer.appendChild(cell);
+                }
+            }
+        }
+
+        function countNearbyMines(r, c) {
+            let count = 0;
+            for (let i = -1; i <= 1; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    let nr = r + i, nc = c + j;
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE) {
+                        if (board[nr][nc] === 'M') count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function handleCellClick(r, c, el) {
+            if (energy <= 0 || el.classList.contains('open')) return;
+
+            energy--;
+            document.getElementById('energy').innerText = energy;
+            el.classList.add('open');
+            const content = board[r][c];
+
+            if (content === 'M') {
+                el.classList.add('mine');
+                el.innerText = '👾';
+                document.getElementById('game-log').innerText = "糟糕！遇到怪物，體力受損！";
+            } else if (content === 'T') {
+                el.classList.add('treasure');
+                el.innerText = '💎';
+                score++;
+                document.getElementById('score').innerText = `${score}/3`;
+                document.getElementById('game-log').innerText = "太棒了！發現週年寶藏碎片！";
+                if (score === 3) alert("恭喜完成！你找齊了所有寶藏！");
+            } else {
+                el.innerText = content === 0 ? '' : content;
+                if (content > 0) el.classList.add('n' + content);
+                document.getElementById('game-log').innerText = "這區很安全，繼續前進。";
+            }
+
+            if (energy === 0 && score < 3) {
+                alert("體力耗盡！探險失敗。");
+                document.getElementById('game-log').innerText = "體力歸零，請重新挑戰。";
+            }
+        }
+
+        // 啟動遊戲
+        initGame();
+    </script>
+</body>
+</html>
