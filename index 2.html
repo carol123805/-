@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日翻牌挑戰</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', '微軟正黑體', sans-serif;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 { color: #f1c40f; margin-bottom: 30px; }
+
+        /* 遊戲看板 */
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(4, 80px);
+            gap: 15px;
+            perspective: 1000px;
+        }
+
+        /* 卡片基礎樣式 */
+        .card {
+            width: 80px;
+            height: 110px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            cursor: pointer;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* 卡片背面 (隱藏圖案時) */
+        .card-back {
+            background-color: #34495e;
+            border: 2px solid #ecf0f1;
+        }
+
+        /* 卡片正面 (顯示圖案時) */
+        .card-front {
+            background-color: #ecf0f1;
+            transform: rotateY(180deg);
+            color: #2c3e50;
+        }
+
+        /* 燈箱樣式 */
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 0 30px #f1c40f;
+        }
+
+        .modal-content h2 { color: #e67e22; margin-top: 0; }
+        .coin-text { font-size: 1.5rem; font-weight: bold; color: #f1c40f; margin: 20px 0; }
+        
+        .btn-close {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🃏 每日翻牌挑戰</h1>
+    <p>找出兩張相同的卡片即可獲得獎勵！</p>
+
+    <div class="game-container" id="game-board">
+        </div>
+
+    <div id="modal">
+        <div class="modal-content">
+            <h2>🎉 恭喜完成！</h2>
+            <div class="coin-text">💰 獲得 10 枚硬幣</div>
+            <p>今日挑戰已結束，明天再來吧！</p>
+            <button class="btn-close" onclick="location.reload()">重新開始</button>
+        </div>
+    </div>
+
+    <script>
+        const symbols = ['🍎', '🍎', '💎', '💎', '👻', '👻', '👾', '👾', '🍀', '🍀', '🔥', '🔥', '🌟', '🌟', '🌙', '🌙'];
+        let shuffledSymbols = symbols.sort(() => 0.5 - Math.random());
+        
+        const board = document.getElementById('game-board');
+        let flippedCards = [];
+        let lockBoard = false;
+
+        // 初始化遊戲
+        function createBoard() {
+            shuffledSymbols.forEach((symbol, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.symbol = symbol;
+                
+                card.innerHTML = `
+                    <div class="card-face card-back">?</div>
+                    <div class="card-face card-front">${symbol}</div>
+                `;
+                
+                card.addEventListener('click', flipCard);
+                board.appendChild(card);
+            });
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === flippedCards[0]) return;
+
+            this.classList.add('flipped');
+            flippedCards.push(this);
+
+            if (flippedCards.length === 2) {
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            let isMatch = flippedCards[0].dataset.symbol === flippedCards[1].dataset.symbol;
+
+            if (isMatch) {
+                disableCards();
+            } else {
+                unflipCards();
+            }
+        }
+
+        function disableCards() {
+            // 配對成功
+            lockBoard = true;
+            setTimeout(() => {
+                document.getElementById('modal').style.display = 'flex';
+            }, 600);
+        }
+
+        function unflipCards() {
+            // 配對失敗，翻回去
+            lockBoard = true;
+            setTimeout(() => {
+                flippedCards[0].classList.remove('flipped');
+                flippedCards[1].classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        function resetBoard() {
+            flippedCards = [];
+            lockBoard = false;
+        }
+
+        createBoard();
+    </script>
+</body>
+</html>
